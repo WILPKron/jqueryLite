@@ -5,8 +5,12 @@
         let elements = [];
         let type = whatType(selector);
         switch (type) {
-            case 'dom': elements = [selector]; break;
-            case 'string': elements = document.querySelectorAll(selector); break;
+            case 'dom': 
+                elements = [selector]; 
+            break;
+            case 'string': 
+                elements = document.querySelectorAll(selector); 
+            break;
             case 'nodelist': 
             case 'array': 
                 elements = selector; 
@@ -14,6 +18,40 @@
         }
         return Array.from(elements);
     }
+    const eventTrigger = (element, eventName) => {
+        const event = document.createEvent('HTMLEvents');
+        event.initEvent(eventName, true, false);
+        element.dispatchEvent(event);
+    }
+
+    const serialize = (form, arrayMode = false) => {
+        let arr = [];
+        Array.prototype.slice.call(form.elements).forEach( (field) => {
+            if (!field.name || field.disabled || ['file', 'reset', 'submit', 'button'].indexOf(field.type) > -1) return;
+            if (field.type === 'select-multiple') {
+                Array.prototype.slice.call(field.options).forEach( (option) => {
+                    if (!option.selected) return;
+                    arrayMode
+                    if(arrayMode) {
+                        arr[field.name] = arr[field.name] ?? [];
+                        arr[field.name].push(option.value);
+                    } else {
+                        arr.push(encodeURIComponent(field.name) + '=' + encodeURIComponent(option.value));
+                    }
+                });
+                return;
+            }
+            if (['checkbox', 'radio'].indexOf(field.type) >-1 && !field.checked) return;
+            if(arrayMode) {
+                arr[field.name] = arr[field.name] ?? [];
+                arr[field.name].push(field.value);
+            } else {
+                arr.push(encodeURIComponent(field.name) + '=' + encodeURIComponent(field.value));
+            }
+        });
+        return arrayMode ? arr : arr.join('&');
+    }
+
     function wk (selector) {
         const obj = {};
         const elements = readSelector(selector);
@@ -21,12 +59,10 @@
             elements,
             selector,
             each: function (callback) {
-                elements.forEach(element => {
-                    callback( element );
-                });
+                elements.forEach(element => callback( element ));
             },
-            first: function () {
-                return elements[0];
+            first: function (returnVanilla = true) {
+                return returnVanilla ? elements[0] : wk(elements[0]);
             },
             remove: function () {
                 this.first().parentNode.removeChild(this.first());
@@ -34,28 +70,20 @@
             },
             html: function (newHtml) {
                 if(newHtml !== undefined) {
-                    this.each(element => {
-                        element.innerHTML = newHtml;
-                    });
+                    this.each(element => element.innerHTML = newHtml);
                 } else return this.first().innerHTML;
                 return this;
             },
             css: function (newCss) {
-                this.each(element => {
-                    Object.assign(element.style, newCss);
-                });
+                this.each(element => Object.assign(element.style, newCss));
                 return this;
             },
             hiden: function () {
-                this.each(element => {
-                    element.style.display = 'none';
-                });
+                this.each(element => element.style.display = 'none');
                 return this;
             },
             show: function () {
-                this.each(element => {
-                    element.style.removeProperty('display');
-                });
+                this.each(element => element.style.removeProperty('display'));
                 return this;
             },
             toggle: function () {
@@ -69,32 +97,22 @@
                 return this;
             },
             addClass: function (className) {
-                this.each(element => {
-                    element.classList.add(className);
-                });
+                this.each(element => element.classList.add(className));
                 return this;
             },
             removeClass: function (className) {
-                this.each(element => {
-                    element.classList.remove(className);
-                });
+                this.each(element => element.classList.remove(className));
                 return this;
             },
             toggleClass: function (className) {
-                this.each(element => {
-                    element.classList.toggle(className); 
-                });
+                this.each(element => element.classList.toggle(className));
                 return this;
             },
             hasClass: function(className) {
                 return this.first().classList.contains(className);
             },
             trigger: function (eventName) {
-                this.each(element => {
-                    const event = document.createEvent('HTMLEvents');
-                    event.initEvent(eventName, true, false);
-                    element.dispatchEvent(event);
-                });
+                this.each(element => eventTrigger(element, eventName));
                 return this;
             },
             parent: function (eventName) {
@@ -102,6 +120,9 @@
             },
             parents: function (selector) {
                 return this.first().closest(selector);
+            },
+            find: function (selector) {
+                return wk(this.first().querySelectorAll(selector));
             },
             data: function (key,value) {
                 if(key !== undefined) {
@@ -112,17 +133,13 @@
                     if (typeof key === 'string' && value === undefined) {
                         return this.first().dataset[key];
                     } else if(typeof key === 'object' && value === undefined) {
-                        this.each(element => { 
-                            Object.assign(element.dataset, key);
-                        });
+                        this.each(element => Object.assign(element.dataset, key));
                     }
                 }
                 return this;
             },
             removeData: function (key) {
-                this.each(element => {
-                    element.removeAttribute(`data-${key}`);
-                });
+                this.each(element => element.removeAttribute(`data-${key}`));
                 return this;
             },
             attr: function (key,value) {
@@ -135,23 +152,23 @@
                         return this.first().getAttribute(key);
                     } else if(typeof key === 'object' && value === undefined) {
                         this.each(element => {
-                            for (let i in key) element.setAttribute(i, key[i]);
+                            for (let i in key) {
+                                element.setAttribute(i, key[i]);
+                            }
                         });
                     }
                 }
                 return this;
             },
             removeAttr: function (key) {
-                this.each(element => {
-                    element.removeAttribute(key);
-                });
+                this.each(element => element.removeAttribute(key));
                 return this;
             },
             eq: function (index) {
-                return wk(elements[index]);
+                return index !== undefined ? ( (elements[index] !== undefined) ? wk(elements[index]) : null ) : this;
             },
             get: function (index) {
-                return index === undefined ? obj.elements : obj.elements[index];
+                return index === undefined ? this.elements : this.elements[index];
             },
             ready: function (callback) {
                 const rs = document.readyState;
@@ -181,8 +198,13 @@
                     });
                 });
                 return this;
-            }
-
+            },
+            serialize: function () {
+                return serialize(this.first());
+            },
+            serializeArray: function () {
+                serialize(this.first(), true);
+            },
         }
 
     }
