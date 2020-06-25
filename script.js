@@ -1,19 +1,36 @@
+"use strict";
 (() => {
-    const whatType = item => item.nodeType !== undefined ? 'dom' : toString.call(item).replace('[', '').replace(']', '').split(' ')[1].toLowerCase();
+    const createElementFromHTML = (htmlString) => {
+        if(typeof htmlString !== 'string') return htmlString;
+        let str = htmlString.replace(/\r?\n/g, '').replace(/\s+/g, ' ').trim();
+        let div =  document.createElement('div');
+        div.innerHTML = str;
+        let arr = [].slice.call(div.children);
+        return arr.length > 0 ? arr : htmlString;
+    }
+    const isDom = item => item.nodeType !== undefined && [3].indexOf(item.nodeType) === -1;
+    const whatType = item => isDom(item) ? 'dom' : toString.call(item).replace('[', '').replace(']', '').split(' ')[1].toLowerCase();
     const readSelector = selector => {
         if(selector === undefined) return Array.from([]);
         let elements = [];
-        let type = whatType(selector);
+        let selectorTemp = createElementFromHTML(selector);
+        let type = whatType(selectorTemp);
+        if(type === 'array') selector = selectorTemp;
+
         switch (type) {
-            case 'dom': 
-                elements = [selector]; 
+            case 'dom':
+                elements = [selector];
             break;
-            case 'string': 
-                elements = document.querySelectorAll(selector); 
+            case 'text':
+            case 'string':
+                elements = document.querySelectorAll(selector);
             break;
-            case 'nodelist': 
-            case 'array': 
-                elements = selector; 
+            case 'nodelist':
+            case 'array':
+                elements = selector;
+            break;
+            case 'object':
+                elements = (type === 'object' && selector.elements !== undefined) ? selector.elements : [];
             break;
         }
         return Array.from(elements);
@@ -22,6 +39,12 @@
         const event = document.createEvent('HTMLEvents');
         event.initEvent(eventName, true, false);
         element.dispatchEvent(event);
+    }
+
+    const cloneElements = element => {
+        const cloneElement = [];
+        element.each( item =>  cloneElement.push(item.cloneNode(true)) );
+        return cloneElement;
     }
 
     const serialize = (form, arrayMode = false) => {
@@ -36,7 +59,7 @@
                         arr[field.name] = arr[field.name] ?? [];
                         arr[field.name].push(option.value);
                     } else {
-                        arr.push(encodeURIComponent(field.name) + '=' + encodeURIComponent(option.value));
+                        arr.push(`${encodeURIComponent(field.name)}=${encodeURIComponent(option.value)}`);
                     }
                 });
                 return;
@@ -46,47 +69,47 @@
                 arr[field.name] = arr[field.name] ?? [];
                 arr[field.name].push(field.value);
             } else {
-                arr.push(encodeURIComponent(field.name) + '=' + encodeURIComponent(field.value));
+                arr.push(`${encodeURIComponent(field.name)}=${encodeURIComponent(field.value)}`);
             }
         });
         return arrayMode ? arr : arr.join('&');
     }
 
     function wk (selector) {
-        const obj = {};
         const elements = readSelector(selector);
+
         return {
             elements,
             selector,
-            each: function (callback) {
+            each (callback) {
                 elements.forEach(element => callback( element ));
             },
-            first: function (returnVanilla = true) {
+            first (returnVanilla = true) {
                 return returnVanilla ? elements[0] : wk(elements[0]);
             },
-            remove: function () {
+            remove () {
                 this.first().parentNode.removeChild(this.first());
                 return this;
             },
-            html: function (newHtml) {
+            html (newHtml) {
                 if(newHtml !== undefined) {
                     this.each(element => element.innerHTML = newHtml);
                 } else return this.first().innerHTML;
                 return this;
             },
-            css: function (newCss) {
+            css (newCss) {
                 this.each(element => Object.assign(element.style, newCss));
                 return this;
             },
-            hiden: function () {
+            hiden () {
                 this.each(element => element.style.display = 'none');
                 return this;
             },
-            show: function () {
+            show () {
                 this.each(element => element.style.removeProperty('display'));
                 return this;
             },
-            toggle: function () {
+            toggle () {
                 this.each(element => {
                     if(element.style.display === 'none') {
                         element.style.removeProperty('display');
@@ -96,35 +119,70 @@
                 });
                 return this;
             },
-            addClass: function (className) {
+            addClass (className) {
                 this.each(element => element.classList.add(className));
                 return this;
             },
-            removeClass: function (className) {
+            removeClass (className) {
                 this.each(element => element.classList.remove(className));
                 return this;
             },
-            toggleClass: function (className) {
+            toggleClass (className) {
                 this.each(element => element.classList.toggle(className));
                 return this;
             },
-            hasClass: function(className) {
+            hasClass (className) {
                 return this.first().classList.contains(className);
             },
-            trigger: function (eventName) {
+            trigger (eventName) {
                 this.each(element => eventTrigger(element, eventName));
                 return this;
             },
-            parent: function (eventName) {
+            parent (eventName) {
                 return this.first().parentNode;
             },
-            parents: function (selector) {
+            parents (selector) {
                 return this.first().closest(selector);
             },
-            find: function (selector) {
+            find (selector) {
                 return wk(this.first().querySelectorAll(selector));
             },
-            data: function (key,value) {
+            children () {
+                return this.first().children;
+            },
+            contains (element, child) {
+                return element !== child && element.contains(child);
+            },
+            clone (element) {
+                return this.first().cloneNode(true);
+            },
+            after (element) { // not use
+                const cloneElement = cloneElements(wk(element));
+                this.each( el => {
+                    cloneElement.forEach( item => el.insertAdjacentElement('afterend', item.cloneNode(true)));
+                })
+                return this;
+            },
+            before (element) { // not use
+                const cloneElement = cloneElements(wk(element));
+                this.each( el => {
+                    cloneElement.forEach( item => el.insertAdjacentElement('beforebegin', item.cloneNode(true)) );
+                });
+                return this;
+            },
+            append (element) {
+                const cloneElement = cloneElements(wk(element));
+                this.each( el => {
+                    cloneElement.forEach( item => el.appendChild(item.cloneNode(true)) );
+                });
+                return this;
+            },
+            detach () {
+                const cloneElement = cloneElements(this);
+                this.each( item => item.parentNode.removeChild(item));
+                return cloneElement;
+            },
+            data (key,value) {
                 if(key !== undefined) {
                     if (typeof key === 'string' && value !== undefined) {
                         key = {key, value};
@@ -138,11 +196,11 @@
                 }
                 return this;
             },
-            removeData: function (key) {
+            removeData (key) {
                 this.each(element => element.removeAttribute(`data-${key}`));
                 return this;
             },
-            attr: function (key,value) {
+            attr (key,value) {
                 if(key !== undefined) {
                     if (typeof key === 'string' && value !== undefined) {
                         key = {key, value};
@@ -160,53 +218,66 @@
                 }
                 return this;
             },
-            removeAttr: function (key) {
+            removeAttr (key) {
                 this.each(element => element.removeAttribute(key));
                 return this;
             },
-            eq: function (index) {
+            eq (index) {
                 return index !== undefined ? ( (elements[index] !== undefined) ? wk(elements[index]) : null ) : this;
             },
-            get: function (index) {
-                return index === undefined ? this.elements : this.elements[index];
+            get (index) {
+                return index === undefined ? elements : ( (elements[index] !== undefined) ? elements[index] : null );
             },
-            ready: function (callback) {
+            try (callback) {
+                try { callback() } catch (e) { console.error(e) }
+            },
+            ready (callback) {
                 const rs = document.readyState;
                 if (rs !== 'loading') {
-                    callback();
+                    try { callback() } catch (e) { console.error(e) }
                 } else if (document.addEventListener) {
-                    document.addEventListener('DOMContentLoaded', callback);
+                    document.addEventListener('DOMContentLoaded', () => {
+                        try { callback() } catch (e) { console.error(e) }
+                    });
                 } else {
                     document.attachEvent('onreadystatechange', () => {
-                        if (rs === 'complete') callback();
+                        if (rs === 'complete') {
+                            try { callback() } catch (e) { console.error(e) }
+                        }
                     });
                 }
                 return this;
             },
-            on: function ( evt, selector, handler = undefined) {
-                const _this = this;
+            on ( evt, selector, handler = undefined) {
                 this.each(element => {
-                    element.addEventListener(evt, function (event) { 
+                    element.addEventListener(evt, (event) => {
                         let callback = handler == undefined ? selector : handler;
                         if ( typeof selector === 'string' && event.target.matches(selector + ', ' + selector + ' *') ) {
-                            callback.apply(event.target.closest(selector), arguments);
+                            callback.apply(event.target.closest(selector), [event]);
                         } else {
-                            if (typeof _this.selector === 'string' && event.target.matches(_this.selector + ', ' + _this.selector + ' *') ) {
-                                callback.apply(event.target, arguments);
+                            if (typeof this.selector === 'string' && event.target.matches(this.selector + ', ' + this.selector + ' *') ) {
+                                callback.apply(event.target, [event]);
                             }
                         }
                     });
                 });
                 return this;
             },
-            serialize: function () {
+            serialize () {
                 return serialize(this.first());
             },
-            serializeArray: function () {
-                serialize(this.first(), true);
+            serializeArray () {
+                return serialize(this.first(), true);
             },
+            timeWorkCode (callback, id = Symbol("id").toString()) {
+                console.time(id);
+                    callback();
+                console.timeEnd(id);
+            }
         }
 
     }
     window.wk = wk;
 })();
+
+const WK = wk();
