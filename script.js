@@ -16,7 +16,6 @@
         let selectorTemp = createElementFromHTML(selector);
         let type = whatType(selectorTemp);
         if(type === 'array') selector = selectorTemp;
-
         switch (type) {
             case 'dom':
                 elements = [selector];
@@ -34,19 +33,18 @@
             break;
         }
         return Array.from(elements);
-    }
+    };
     const eventTrigger = (element, eventName) => {
         const event = document.createEvent('HTMLEvents');
         event.initEvent(eventName, true, false);
         element.dispatchEvent(event);
-    }
-
+    };
+    const emptyCallback = () => {};
     const cloneElements = element => {
         const cloneElement = [];
-        element.each( item =>  cloneElement.push(item.cloneNode(true)) );
+        element.each( item => cloneElement.push(item.cloneNode(true)) );
         return cloneElement;
-    }
-
+    };
     const serialize = (form, arrayMode = false) => {
         let arr = [];
         Array.prototype.slice.call(form.elements).forEach( (field) => {
@@ -74,23 +72,12 @@
         });
         return arrayMode ? arr : arr.join('&');
     }
-
-    function wk (selector) {
+    if(typeof wk === "undefined") window.wk = {};
+    wk = function (selector) {
         const elements = readSelector(selector);
-
         return {
             elements,
             selector,
-            each (callback) {
-                elements.forEach(element => callback( element ));
-            },
-            first (returnVanilla = true) {
-                return returnVanilla ? elements[0] : wk(elements[0]);
-            },
-            remove () {
-                this.first().parentNode.removeChild(this.first());
-                return this;
-            },
             html (newHtml) {
                 if(newHtml !== undefined) {
                     this.each(element => element.innerHTML = newHtml);
@@ -131,31 +118,6 @@
                 this.each(element => element.classList.toggle(className));
                 return this;
             },
-            hasClass (className) {
-                return this.first().classList.contains(className);
-            },
-            trigger (eventName) {
-                this.each(element => eventTrigger(element, eventName));
-                return this;
-            },
-            parent (eventName) {
-                return this.first().parentNode;
-            },
-            parents (selector) {
-                return this.first().closest(selector);
-            },
-            find (selector) {
-                return wk(this.first().querySelectorAll(selector));
-            },
-            children () {
-                return this.first().children;
-            },
-            contains (element, child) {
-                return element !== child && element.contains(child);
-            },
-            clone (element) {
-                return this.first().cloneNode(true);
-            },
             after (element) { // not use
                 const cloneElement = cloneElements(wk(element));
                 this.each( el => {
@@ -165,7 +127,7 @@
             },
             before (element) { // not use
                 const cloneElement = cloneElements(wk(element));
-                this.each( el => {
+                this.each(el => {
                     cloneElement.forEach( item => el.insertAdjacentElement('beforebegin', item.cloneNode(true)) );
                 });
                 return this;
@@ -222,62 +184,75 @@
                 this.each(element => element.removeAttribute(key));
                 return this;
             },
-            eq (index) {
-                return index !== undefined ? ( (elements[index] !== undefined) ? wk(elements[index]) : null ) : this;
-            },
-            get (index) {
-                return index === undefined ? elements : ( (elements[index] !== undefined) ? elements[index] : null );
-            },
-            try (callback) {
-                try { callback() } catch (e) { console.error(e) }
-            },
-            ready (callback) {
-                const rs = document.readyState;
-                if (rs !== 'loading') {
-                    try { callback() } catch (e) { console.error(e) }
-                } else if (document.addEventListener) {
-                    document.addEventListener('DOMContentLoaded', () => {
-                        try { callback() } catch (e) { console.error(e) }
-                    });
-                } else {
-                    document.attachEvent('onreadystatechange', () => {
-                        if (rs === 'complete') {
-                            try { callback() } catch (e) { console.error(e) }
-                        }
-                    });
-                }
-                return this;
-            },
-            on ( evt, selector, handler = undefined) {
+            on(evt, selector, handler = undefined) {
+                const matchesSelect = (event, selector) => event.matches(selector + ', ' + selector + ' *');
+                const isSrting = selector => typeof selector === 'string';
                 this.each(element => {
                     element.addEventListener(evt, (event) => {
                         let callback = handler == undefined ? selector : handler;
-                        if ( typeof selector === 'string' && event.target.matches(selector + ', ' + selector + ' *') ) {
-                            callback.apply(event.target.closest(selector), [event]);
-                        } else {
-                            if (typeof this.selector === 'string' && event.target.matches(this.selector + ', ' + this.selector + ' *') ) {
-                                callback.apply(event.target, [event]);
-                            }
+                        let target = false;
+                        if ( isSrting(selector) && matchesSelect(event.target, selector) ) {
+                            target = event.target.closest(selector);
+                        } else if ( isSrting(this.selector) && matchesSelect(event.target, this.selector) ) {
+                            target = event.target;
                         }
+                        if(target !== false)  callback.apply(target, [event]);
                     });
                 });
                 return this;
             },
-            serialize () {
-                return serialize(this.first());
-            },
-            serializeArray () {
-                return serialize(this.first(), true);
-            },
-            timeWorkCode (callback, id = Symbol("id").toString()) {
-                console.time(id);
-                    callback();
-                console.timeEnd(id);
-            }
+
+            contains: (element, child) => element !== child && element.contains(child),
+            get: index => index === undefined ? elements : ((elements[index] !== undefined) ? elements[index] : null),
+            first: (returnVanilla = true) => returnVanilla ? elements[0] : wk(elements[0]),
+            each: (callback = emptyCallback) => elements.forEach(element => callback( element )),
+
+            serialize () { serialize(this.first()) },
+            serializeArray() { serialize(this.first(), true) },
+            eq (index) { index !== undefined ? ( (elements[index] !== undefined) ? wk(elements[index]) : null ) : this },
+            clone (element) { this.first().cloneNode(true) },
+            hasClass (className) { return this.first().classList.contains(className) },
+            trigger (eventName) { this.each(element => eventTrigger(element, eventName)) },
+            parent (eventName) { return wk(this.first().parentNode) },
+            parents (selector) { return wk(this.first().closest(selector)) },
+            find (selector) { return wk(this.first().querySelectorAll(selector)) },
+            children () { return wk(this.first().children) },
+            remove () { this.first().parentNode.removeChild(this.first()) },
         }
-
     }
-    window.wk = wk;
+    wk.try = (callback = emptyCallback) => {
+        try { callback() } catch (e) { console.error(e) }
+    },
+    wk.ready = function (callback = emptyCallback) {
+        if (document.readyState !== 'loading') {
+            this.try(callback);
+        } else if (document.addEventListener) {
+            document.addEventListener('DOMContentLoaded', () => this.try(callback));
+        } else {
+            document.attachEvent('onreadystatechange', () => {
+                if (document.readyState === 'complete') this.try(callback);
+            });
+        }
+        return this;
+    },
+    wk.urlParams = (query = {}) => {
+        const vars = window.location.search.substring(1).split("&");
+        if(vars[0] === '') return false;
+        vars.forEach((item) => {
+            let [key, value] = [...(item.split("="))];
+            value = decodeURIComponent(value);
+            if(typeof query[key] === "string") query[key] = [query[key]];
+            if(typeof query[key] === "undefined") {
+                query[key] = value;
+            } else {
+                query[key].push(value);
+            }
+        });
+        return query;
+    }
+    wk.timeWorkCode = (callback = emptyCallback, id = Symbol("id").toString()) => {
+        console.time(id);
+        callback();
+        console.timeEnd(id);
+    }
 })();
-
-const WK = wk();
