@@ -128,14 +128,14 @@
                 this.each(element => element.classList.toggle(className));
                 return this;
             },
-            after(element) { // not use
+            after(element) {
                 const cloneElement = cloneElements(wk(element));
                 this.each(el => {
                     cloneElement.forEach(item => el.insertAdjacentElement('afterend', item.cloneNode(true)));
                 })
                 return this;
             },
-            before(element) { // not use
+            before(element) {
                 const cloneElement = cloneElements(wk(element));
                 this.each(el => {
                     cloneElement.forEach(item => el.insertAdjacentElement('beforebegin', item.cloneNode(true)));
